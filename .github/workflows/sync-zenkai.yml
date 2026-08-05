@@ -1,0 +1,22 @@
+name: Sync Zenkai DB
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: sync-zenkai
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Synchroniser l'API Zenkai vers Supabase
+        run: node scripts/sync-zenkai.mjs
