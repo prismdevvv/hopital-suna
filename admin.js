@@ -508,10 +508,9 @@ async function loadPaye() {
       const heures = Math.floor(minutes / 60);
       const taux = tauxParGrade[e.grade] || 0;
       const paye = heures * taux;
-      grandTotal += paye;
-
       const gradeLabel = GRADE_LABELS[e.grade] || 'Aucun';
       const isPaid = paidSet.has(e.id);
+      if (!isPaid) grandTotal += paye;
 
       const tr = document.createElement('tr');
       tr.innerHTML = `
@@ -540,6 +539,7 @@ async function togglePaye(shinobiId, periodeKey, checked) {
     } else {
       await supaDelete('paye_versements', `shinobi_id=eq.${shinobiId}&periode_key=eq.${encodeURIComponent(periodeKey)}`);
     }
+    await loadPaye();
   } catch (e) { console.error(e); alert('Erreur lors de la mise à jour du statut de paye.'); }
 }
 
