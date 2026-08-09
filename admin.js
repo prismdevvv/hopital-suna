@@ -592,6 +592,16 @@ function renderLavandeAdmin() {
   const tbody = document.getElementById('lavande-admin-body');
   tbody.innerHTML = '';
 
+  const now = new Date();
+  const day = now.getDay();
+  const debutSemaine = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (day === 0 ? 6 : day - 1));
+  const lavandeTotal = achats.reduce((sum, a) => sum + Number(a.montant), 0);
+  const lavandeSemaine = achats
+    .filter(a => new Date(a.created_at) >= debutSemaine)
+    .reduce((sum, a) => sum + Number(a.montant), 0);
+  document.getElementById('stat-lavande-total').textContent = lavandeTotal.toLocaleString('fr-FR');
+  document.getElementById('stat-lavande-semaine').textContent = lavandeSemaine.toLocaleString('fr-FR');
+
   if (achats.length === 0) {
     tbody.innerHTML = '<tr><td colspan="7" class="empty-row">Aucun achat enregistré</td></tr>';
     document.getElementById('lavande-grand-total').textContent = '0';
