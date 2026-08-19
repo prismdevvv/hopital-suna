@@ -579,6 +579,26 @@ document.getElementById('btn-save-taux-lavande').addEventListener('click', async
 let lavandeAchatsCache = [];
 let lavandeEditingId = null;
 
+document.getElementById('btn-rembourser-tout').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-rembourser-tout');
+  const nbEnAttente = lavandeAchatsCache.filter(a => !a.rembourse).length;
+  if (nbEnAttente === 0) return;
+  if (!confirm(`Marquer les ${nbEnAttente} achat${nbEnAttente > 1 ? 's' : ''} en attente comme remboursés ?`)) return;
+  btn.disabled = true;
+  try {
+    await supaPatch('lavande', 'rembourse=eq.false', {
+      rembourse: true,
+      rembourse_at: new Date().toISOString()
+    }, true);
+    await loadLavandeAdmin();
+  } catch (e) {
+    console.error(e);
+    alert('Erreur lors du remboursement groupé.');
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 async function loadLavandeAdmin() {
   try {
     lavandeAchatsCache = await supaGet('lavande', 'select=id,vendeur,montant,rembourse,shinobi_id,created_at&order=created_at.desc');
