@@ -137,47 +137,86 @@ function clearSession(key) {
   localStorage.removeItem(key);
 }
 
-// --- Anti-brute-force basique côté client ---
-// Ceci ne remplace pas une vraie limite côté serveur (facilement
-// contournable en modifiant le JS local), mais décourage les essais
-// répétés accidentels ou un script naïf lancé depuis la console.
-// Voir SECURITY.md pour la vraie protection à mettre en place.
-function makeLoginThrottle(storageKey, maxAttempts = 5, lockoutMs = 30000) {
-  function state() {
-    try { return JSON.parse(sessionStorage.getItem(storageKey)) || { count: 0, until: 0 }; }
-    catch (_) { return { count: 0, until: 0 }; }
-  }
-  function save(s) { sessionStorage.setItem(storageKey, JSON.stringify(s)); }
-  return {
-    isLocked() {
-      const s = state();
-      return s.until > Date.now();
-    },
-    remainingSeconds() {
-      const s = state();
-      return Math.max(0, Math.ceil((s.until - Date.now()) / 1000));
-    },
-    registerFailure() {
-      const s = state();
-      s.count += 1;
-      if (s.count >= maxAttempts) {
-        s.until = Date.now() + lockoutMs;
-        s.count = 0;
-      }
-      save(s);
-    },
-    registerSuccess() {
-      save({ count: 0, until: 0 });
-    }
-  };
-}
-
 // --- Génère un mot de passe temporaire lisible (pour la création de
 // comptes "observateur" côté gérance, à la place d'un sceau vide) ---
 function generateTempSceau() {
   const bytes = new Uint8Array(9);
   crypto.getRandomValues(bytes);
   return Array.from(bytes, b => b.toString(36)).join('').slice(0, 10);
+}
+
+// --- Connexion Discord + vérification Zenkai (division Médical) ---
+// Flux OAuth "implicite" (response_type=token) : Discord renvoie l'access
+// token directement dans le fragment d'URL, sans jamais faire intervenir
+// de client secret — indispensable puisque le site est 100% statique.
+const DISCORD_CLIENT_ID = '1543006820904345651';
+const ZENKAI_MEDICAL_DIVISION = 'Médical';
+
+function discordAuthUrl(redirectUri) {
+  const params = new URLSearchParams({
+    client_id: DISCORD_CLIENT_ID,
+    redirect_uri: redirectUri,
+    response_type: 'token',
+    scope: 'identify'
+  });
+  return `https://discord.com/api/oauth2/authorize?${params}`;
+}
+
+// Lit le token dans le fragment renvoyé par Discord après connexion, puis
+// nettoie immédiatement l'URL pour ne pas le laisser dans l'historique.
+function parseDiscordFragment() {
+  if (!location.hash) return null;
+  const params = new URLSearchParams(location.hash.slice(1));
+  const token = params.get('access_token');
+  if (!token) return null;
+  history.replaceState(null, '', location.pathname + location.search);
+  return token;
+}
+
+async function discordFetchMe(token) {
+  const res = await fetch('https://discord.com/api/users/@me', {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!res.ok) throw new Error(`Discord ${res.status}`);
+  return res.json();
+}
+
+// Renvoie les personnages Zenkai de ce discord_id qui sont dans la
+// division Médical, ainsi que le nombre total de personnages (pour
+// distinguer "aucun personnage" de "aucun en Médical").
+async function findZenkaiMedicalCharacters(discordId) {
+  const all = await supaGet('zenkai_characters', `discord_id=eq.${encodeURIComponent(discordId)}&select=char_key,name,divisions`);
+  const medical = all.filter(c => Array.isArray(c.divisions) && c.divisions.includes(ZENKAI_MEDICAL_DIVISION));
+  return { total: all.length, medical };
+}
+
+// Le nom Zenkai est au format "Prénom Nom".
+function splitZenkaiName(name) {
+  const parts = String(name || '').trim().split(/\s+/);
+  return { prenom: parts[0] || '', nom: parts.slice(1).join(' ') || '' };
+}
+
+// Retrouve (ou crée) la fiche shinobi correspondant à ce discord_id +
+// personnage Zenkai retenu, et la renvoie (mêmes champs que verifier_sceau
+// renvoyait auparavant).
+async function resolveShinobiForCharacter(discordId, character) {
+  const { prenom, nom } = splitZenkaiName(character.name);
+  let users = await supaGet('shinobis', `discord_id=eq.${encodeURIComponent(discordId)}&select=id,nom,prenom,role,grade,absent,created_at`);
+  if (users.length > 0) return users[0];
+
+  // Compte créé avant ce changement (nom/prénom identiques, comparaison
+  // insensible à la casse au cas où l'orthographe diffère légèrement sur
+  // Zenkai) mais pas encore lié à un Discord : on le rattache plutôt que
+  // d'en créer un second — ça préserve son grade, sa paye, ses postes,
+  // etc. (tous liés à l'id du shinobi, jamais à son nom).
+  users = await supaGet('shinobis', `nom=ilike.${encodeURIComponent(nom)}&prenom=ilike.${encodeURIComponent(prenom)}&select=id,nom,prenom,role,grade,absent,created_at`);
+  if (users.length > 0) {
+    await supaRpc('set_discord_id', { p_shinobi_id: users[0].id, p_discord_id: discordId });
+    return users[0];
+  }
+
+  const created = await supaPost('shinobis', { nom, prenom, discord_id: discordId, grade: 'stagiaire' });
+  return created[0];
 }
 
 // --- Thème clair / sombre (identique sur les deux pages) ---

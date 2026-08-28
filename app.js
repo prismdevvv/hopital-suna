@@ -21,8 +21,6 @@ let tauxLavande = 100;
 let lastPlanning = [];
 let editingPlanningId = null;
 
-const loginThrottle = makeLoginThrottle('hopital_login_throttle');
-
 // --- Time logic ---
 function isServerOpen() {
   const now = new Date();
@@ -65,88 +63,55 @@ function updateClock() {
   }
 }
 
-// --- Auth : onglets ---
-document.querySelectorAll('.tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
-    const target = tab.dataset.tab;
-    document.getElementById('login-form').classList.toggle('hidden', target !== 'login');
-    document.getElementById('register-form').classList.toggle('hidden', target !== 'register');
-  });
+// --- Connexion Discord + vérification Zenkai (division Médical) ---
+document.getElementById('discord-login-btn').addEventListener('click', () => {
+  location.href = discordAuthUrl(location.origin + location.pathname);
 });
 
-// --- Enregistrement ---
-document.getElementById('register-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const submitBtn = e.target.querySelector('button[type="submit"]');
-  const nom = document.getElementById('reg-nom').value.trim();
-  const prenom = document.getElementById('reg-prenom').value.trim();
-  const sceau = document.getElementById('reg-sceau').value;
-  const sceau2 = document.getElementById('reg-sceau2').value;
-  const errEl = document.getElementById('reg-error');
-  const sucEl = document.getElementById('reg-success');
-  errEl.textContent = '';
-  sucEl.textContent = '';
-
-  if (!nom || !prenom) { errEl.textContent = 'Merci de renseigner ton nom et ton prénom.'; return; }
-  if (sceau !== sceau2) { errEl.textContent = 'Les sceaux ne correspondent pas.'; return; }
-  if (sceau.length < 6) { errEl.textContent = 'Le sceau doit contenir au moins 6 caractères.'; return; }
-
-  submitBtn.disabled = true;
-  try {
-    const existing = await supaGet('shinobis', `nom=eq.${encodeURIComponent(nom)}&prenom=eq.${encodeURIComponent(prenom)}&select=id`);
-    if (existing.length > 0) { errEl.textContent = 'Ce shinobi est déjà enregistré.'; return; }
-
-    const hashed = await hashSceau(sceau);
-    await supaPost('shinobis', { nom, prenom, sceau: hashed, grade: 'stagiaire' }, true);
-    sucEl.textContent = 'Enregistrement réussi ! Vous pouvez maintenant vous identifier.';
-    document.getElementById('register-form').reset();
-  } catch (err) {
-    errEl.textContent = 'Erreur de connexion au registre. Réessaie dans un instant.';
-    console.error(err);
-  } finally {
-    submitBtn.disabled = false;
-  }
-});
-
-// --- Connexion ---
-document.getElementById('login-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const submitBtn = e.target.querySelector('button[type="submit"]');
+async function startDiscordLogin(token) {
   const errEl = document.getElementById('login-error');
   errEl.textContent = '';
-
-  if (loginThrottle.isLocked()) {
-    errEl.textContent = `Trop de tentatives. Réessaie dans ${loginThrottle.remainingSeconds()} s.`;
-    return;
-  }
-
-  const nom = document.getElementById('login-nom').value.trim();
-  const prenom = document.getElementById('login-prenom').value.trim();
-  const sceau = document.getElementById('login-sceau').value;
-
-  submitBtn.disabled = true;
   try {
-    const hashed = await hashSceau(sceau);
-    const users = await supaRpc('verifier_sceau', { p_nom: nom, p_prenom: prenom, p_sceau_hash: hashed });
-    if (users.length === 0) {
-      loginThrottle.registerFailure();
-      errEl.textContent = 'Identité ou sceau incorrect.';
-      return;
-    }
+    const me = await discordFetchMe(token);
+    const { total, medical } = await findZenkaiMedicalCharacters(me.id);
+    if (total === 0) { errEl.textContent = 'Aucun personnage Zenkai trouvé pour ce compte Discord.'; return; }
+    if (medical.length === 0) { errEl.textContent = "Aucun de tes personnages n'est dans la division Médical."; return; }
+    if (medical.length === 1) { await finishDiscordLogin(me.id, medical[0]); return; }
+    showCharacterChoice(me.id, medical);
+  } catch (err) {
+    console.error(err);
+    errEl.textContent = 'Erreur de connexion à Discord.';
+  }
+}
 
-    loginThrottle.registerSuccess();
-    currentUser = users[0];
+function showCharacterChoice(discordId, characters) {
+  const list = document.getElementById('char-choice-list');
+  list.innerHTML = '';
+  characters.forEach(c => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn-sm';
+    btn.textContent = c.name;
+    btn.addEventListener('click', () => finishDiscordLogin(discordId, c));
+    list.appendChild(btn);
+  });
+  document.getElementById('char-choice').classList.remove('hidden');
+}
+
+async function finishDiscordLogin(discordId, character) {
+  const errEl = document.getElementById('login-error');
+  try {
+    currentUser = await resolveShinobiForCharacter(discordId, character);
     saveSession(SESSION_KEY, currentUser);
     showDashboard();
   } catch (err) {
-    errEl.textContent = 'Erreur de connexion au registre.';
     console.error(err);
-  } finally {
-    submitBtn.disabled = false;
+    errEl.textContent = 'Erreur lors de la connexion au registre.';
   }
-});
+}
+
+const _discordToken = parseDiscordFragment();
+if (_discordToken) startDiscordLogin(_discordToken);
 
 function showDashboard() {
   document.getElementById('auth-screen').classList.add('hidden');
@@ -176,7 +141,8 @@ document.getElementById('logout-btn').addEventListener('click', () => {
   clearInterval(refreshInterval);
   document.getElementById('dashboard-screen').classList.add('hidden');
   document.getElementById('auth-screen').classList.remove('hidden');
-  document.getElementById('login-form').reset();
+  document.getElementById('char-choice').classList.add('hidden');
+  document.getElementById('login-error').textContent = '';
 });
 
 // --- Poste ---
@@ -999,27 +965,28 @@ window.resolveAlerte = async function (id) {
   }
 })();
 
-// --- Fermeture automatique de tous les postes à 3h00 ---
-let lastCheckHour = new Date().getHours();
-
+// --- Fermeture automatique de tous les postes hors horaires (18h30-3h) ---
+// Ne dépend plus de "être ouvert pile à 3h00" (si personne n'avait
+// d'onglet ouvert à cet instant précis, ça ne se déclenchait jamais ce
+// jour-là et les postes restaient actifs jusqu'au lendemain) : dès que
+// quelqu'un ouvre le site hors horaires, on nettoie tout de suite les
+// postes encore marqués actifs.
 async function checkAutoClosePostes() {
-  const now = new Date();
-  const h = now.getHours();
-  if (h === 3 && lastCheckHour !== 3) {
-    try {
-      const postesActifs = await supaGet('postes', 'actif=eq.true&select=id');
-      for (const p of postesActifs) {
-        await supaPatch('postes', `id=eq.${p.id}`, { actif: false, fin: now.toISOString() });
-      }
-      if (enPoste) {
-        enPoste = false;
-        posteId = null;
-        updatePosteUI();
-      }
-      loadData();
-    } catch (e) { console.error('Erreur fermeture auto:', e); }
-  }
-  lastCheckHour = h;
+  if (isServerOpen()) return;
+  try {
+    const postesActifs = await supaGet('postes', 'actif=eq.true&select=id');
+    if (postesActifs.length === 0) return;
+    const now = new Date();
+    for (const p of postesActifs) {
+      await supaPatch('postes', `id=eq.${p.id}`, { actif: false, fin: now.toISOString() });
+    }
+    if (enPoste) {
+      enPoste = false;
+      posteId = null;
+      updatePosteUI();
+    }
+    loadData();
+  } catch (e) { console.error('Erreur fermeture auto:', e); }
 }
 setInterval(checkAutoClosePostes, 30000);
 

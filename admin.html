@@ -18,13 +18,14 @@
       <div class="hospital-emblem"><svg width="70" height="70" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg></div>
       <h1>Espace Gérance</h1>
       <p class="subtitle">Réservé aux Gérants & Co-Gérants de l'Hôpital</p>
-      <form id="login-form" class="auth-form">
-        <div class="field"><label>Nom</label><input type="text" id="login-nom" maxlength="60" autocomplete="off" required></div>
-        <div class="field"><label>Prénom</label><input type="text" id="login-prenom" maxlength="60" autocomplete="off" required></div>
-        <div class="field"><label>Sceau Secret</label><input type="password" id="login-sceau" maxlength="100" autocomplete="current-password" required></div>
-        <button type="submit" class="btn-primary">Accéder à la Gérance</button>
+      <div class="auth-form">
+        <button type="button" id="discord-login-btn" class="btn-primary">Se connecter avec Discord</button>
         <p id="login-error" class="error"></p>
-      </form>
+        <div id="char-choice" class="hidden">
+          <p class="info-text">Plusieurs de tes personnages sont en division Médical, choisis lequel utiliser :</p>
+          <div id="char-choice-list" style="display:flex;flex-direction:column;gap:8px;margin-top:10px;"></div>
+        </div>
+      </div>
       <a href="index.html" class="back-link">← Retour à l'hôpital</a>
     </div>
   </div>
@@ -193,7 +194,7 @@
                 <p class="info-text">Attribuez un grade médical : <strong>Stagiaire</strong> → <strong>Aspirant</strong> → <strong>Adepte</strong> → <strong>Expert</strong></p>
                 <div class="table-wrapper">
                   <table id="grades-table">
-                    <thead><tr><th>Shinobi</th><th>Rôle</th><th id="th-grade" style="cursor:pointer;">Grade actuel ↕</th><th>Actions</th></tr></thead>
+                    <thead><tr><th>Shinobi</th><th>Rôle</th><th id="th-grade" style="cursor:pointer;">Grade actuel ↕</th><th>Discord</th><th>Actions</th></tr></thead>
                     <tbody id="grades-body"></tbody>
                   </table>
                 </div>
@@ -288,7 +289,7 @@
     </div>
   </div>
 
-  <script src="common.js?v=1"></script>
-  <script src="admin.js?v=9"></script>
+  <script src="common.js?v=2"></script>
+  <script src="admin.js?v=10"></script>
 </body>
 </html>

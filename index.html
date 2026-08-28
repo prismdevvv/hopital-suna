@@ -18,28 +18,15 @@
       <h1>Hôpital de Sunagakure</h1>
       <p class="subtitle">Centre Médical Shinobi — Unité de Soin</p>
 
-      <div class="tabs">
-        <button class="tab active" data-tab="login">Identification</button>
-        <button class="tab" data-tab="register">Enregistrement</button>
-      </div>
-
-      <form id="login-form" class="auth-form">
-        <div class="field"><label>Nom</label><input type="text" id="login-nom" placeholder="Gaïa" maxlength="60" autocomplete="off" required></div>
-        <div class="field"><label>Prénom</label><input type="text" id="login-prenom" placeholder="Artel" maxlength="60" autocomplete="off" required></div>
-        <div class="field"><label>Sceau Secret</label><input type="password" id="login-sceau" placeholder="Votre sceau d'identification" maxlength="100" autocomplete="current-password" required></div>
-        <button type="submit" class="btn-primary">Entrer dans l'Hôpital</button>
+      <div class="auth-form">
+        <button type="button" id="discord-login-btn" class="btn-primary">Se connecter avec Discord</button>
+        <p class="info-text">Réservé aux personnages en division Médical sur Zenkai.</p>
         <p id="login-error" class="error"></p>
-      </form>
-
-      <form id="register-form" class="auth-form hidden">
-        <div class="field"><label>Nom</label><input type="text" id="reg-nom" placeholder="Gaïa" maxlength="60" autocomplete="off" required></div>
-        <div class="field"><label>Prénom</label><input type="text" id="reg-prenom" placeholder="Artel" maxlength="60" autocomplete="off" required></div>
-        <div class="field"><label>Sceau Secret</label><input type="password" id="reg-sceau" placeholder="Choisissez votre sceau (6 caractères min.)" maxlength="100" autocomplete="new-password" required></div>
-        <div class="field"><label>Confirmer le Sceau</label><input type="password" id="reg-sceau2" placeholder="Confirmez votre sceau" maxlength="100" autocomplete="new-password" required></div>
-        <button type="submit" class="btn-primary">S'enregistrer au Centre</button>
-        <p id="reg-error" class="error"></p>
-        <p id="reg-success" class="success"></p>
-      </form>
+        <div id="char-choice" class="hidden">
+          <p class="info-text">Plusieurs de tes personnages sont en division Médical, choisis lequel utiliser :</p>
+          <div id="char-choice-list" style="display:flex;flex-direction:column;gap:8px;margin-top:10px;"></div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -265,7 +252,7 @@
     </div>
   </div>
 
-  <script src="common.js?v=1"></script>
-  <script src="app.js?v=23"></script>
+  <script src="common.js?v=2"></script>
+  <script src="app.js?v=24"></script>
 </body>
 </html>

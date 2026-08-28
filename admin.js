@@ -12,61 +12,72 @@ let allShinobis = [];
 let shinobiMap = {};
 let chatInterval = null;
 
-const loginThrottle = makeLoginThrottle('hopital_admin_login_throttle');
-
 // --- Charger tous les shinobis (utilisé partout pour les jointures) ---
 async function refreshShinobis() {
-  allShinobis = await supaGet('shinobis', 'select=id,prenom,nom,role,grade,absent&order=nom.asc,prenom.asc');
+  allShinobis = await supaGet('shinobis', 'select=id,prenom,nom,role,grade,absent,discord_id&order=nom.asc,prenom.asc');
   shinobiMap = {};
   allShinobis.forEach(s => { shinobiMap[s.id] = s; });
 }
 
-// --- Auth ---
-document.getElementById('login-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const submitBtn = e.target.querySelector('button[type="submit"]');
+// --- Connexion Discord + vérification Zenkai (division Médical) ---
+document.getElementById('discord-login-btn').addEventListener('click', () => {
+  location.href = discordAuthUrl(location.origin + location.pathname);
+});
+
+async function startDiscordLogin(token) {
   const errEl = document.getElementById('login-error');
   errEl.textContent = '';
-
-  if (loginThrottle.isLocked()) {
-    errEl.textContent = `Trop de tentatives. Réessaie dans ${loginThrottle.remainingSeconds()} s.`;
-    return;
-  }
-
-  const nom = document.getElementById('login-nom').value.trim();
-  const prenom = document.getElementById('login-prenom').value.trim();
-  const sceau = document.getElementById('login-sceau').value;
-
-  submitBtn.disabled = true;
   try {
-    const hashed = await hashSceau(sceau);
-    const users = await supaRpc('verifier_sceau', { p_nom: nom, p_prenom: prenom, p_sceau_hash: hashed });
-    if (users.length === 0) {
-      loginThrottle.registerFailure();
-      errEl.textContent = 'Identité ou sceau incorrect.';
+    const me = await discordFetchMe(token);
+    const { total, medical } = await findZenkaiMedicalCharacters(me.id);
+    if (total === 0 || medical.length === 0) {
+      // Message volontairement générique pour ne pas révéler à un compte
+      // non-autorisé qu'il a bien un personnage médical mais n'est juste
+      // pas gérant (cf. contrôle de rôle dans finishDiscordLogin).
+      errEl.textContent = 'Identité ou accès incorrect.';
       return;
     }
+    if (medical.length === 1) { await finishDiscordLogin(me.id, medical[0]); return; }
+    showCharacterChoice(me.id, medical);
+  } catch (err) {
+    console.error(err);
+    errEl.textContent = 'Erreur de connexion à Discord.';
+  }
+}
 
-    const user = users[0];
+function showCharacterChoice(discordId, characters) {
+  const list = document.getElementById('char-choice-list');
+  list.innerHTML = '';
+  characters.forEach(c => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn-sm';
+    btn.textContent = c.name;
+    btn.addEventListener('click', () => finishDiscordLogin(discordId, c));
+    list.appendChild(btn);
+  });
+  document.getElementById('char-choice').classList.remove('hidden');
+}
+
+async function finishDiscordLogin(discordId, character) {
+  const errEl = document.getElementById('login-error');
+  try {
+    const user = await resolveShinobiForCharacter(discordId, character);
     if (user.role !== 'gerant' && user.role !== 'co_gerant') {
-      loginThrottle.registerFailure();
-      // Message volontairement identique à "sceau incorrect" pour ne pas
-      // révéler à un compte non-autorisé qu'il a un mot de passe valide.
-      errEl.textContent = 'Identité ou sceau incorrect.';
+      errEl.textContent = 'Identité ou accès incorrect.';
       return;
     }
-
-    loginThrottle.registerSuccess();
     currentUser = user;
     saveSession(ADMIN_SESSION_KEY, currentUser);
     showAdmin();
   } catch (err) {
-    errEl.textContent = 'Erreur de connexion au registre.';
     console.error(err);
-  } finally {
-    submitBtn.disabled = false;
+    errEl.textContent = 'Erreur lors de la connexion au registre.';
   }
-});
+}
+
+const _discordToken = parseDiscordFragment();
+if (_discordToken) startDiscordLogin(_discordToken);
 
 document.getElementById('logout-btn').addEventListener('click', () => {
   currentUser = null;
@@ -74,7 +85,8 @@ document.getElementById('logout-btn').addEventListener('click', () => {
   if (chatInterval) { clearInterval(chatInterval); chatInterval = null; }
   document.getElementById('admin-screen').classList.add('hidden');
   document.getElementById('auth-screen').classList.remove('hidden');
-  document.getElementById('login-form').reset();
+  document.getElementById('char-choice').classList.add('hidden');
+  document.getElementById('login-error').textContent = '';
 });
 
 async function showAdmin() {
@@ -795,7 +807,7 @@ async function loadGrades() {
   tbody.innerHTML = '';
 
   if (allShinobis.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="4" class="empty-row">Aucun shinobi inscrit</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" class="empty-row">Aucun shinobi inscrit</td></tr>';
     return;
   }
 
@@ -818,12 +830,34 @@ async function loadGrades() {
       <td>${roleLabel}</td>
       <td><span class="grade-badge ${grade}">${GRADE_LABELS[grade] || grade}</span></td>
       <td>
+        <input type="text" class="discord-id-input" data-id="${s.id}" value="${esc(s.discord_id || '')}" placeholder="ID Discord" maxlength="32" style="width:130px;">
+        <button class="btn-sm btn-save-discord" data-id="${s.id}">Lier</button>
+      </td>
+      <td>
         ${prev ? `<button class="btn-grade demote" data-id="${s.id}" data-grade="${prev}">↓ ${GRADE_LABELS[prev]}</button>` : ''}
         ${next ? `<button class="btn-grade promote" data-id="${s.id}" data-grade="${next}">↑ ${GRADE_LABELS[next]}</button>` : '<span class="grade-max-hint">Grade max</span>'}
         <button class="btn-licencier" data-id="${s.id}" data-nom="${esc(s.prenom)} ${esc(s.nom)}">Licencier</button>
       </td>
     `;
     tbody.appendChild(tr);
+  });
+
+  tbody.querySelectorAll('.btn-save-discord').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      const input = tbody.querySelector(`.discord-id-input[data-id="${id}"]`);
+      const value = input.value.trim();
+      btn.disabled = true;
+      try {
+        await supaRpc('set_discord_id', { p_shinobi_id: id, p_discord_id: value || null });
+        await refreshShinobis();
+        loadGrades();
+      } catch (e) {
+        console.error(e);
+        alert('Erreur lors de la liaison du compte Discord.');
+        btn.disabled = false;
+      }
+    });
   });
 
   tbody.querySelectorAll('.btn-licencier').forEach(btn => {

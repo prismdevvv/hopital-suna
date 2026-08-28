@@ -65,6 +65,15 @@ La façon standard et robuste de résoudre ça est de remplacer le système `shi
 
 C'est un changement d'architecture (migration des comptes existants, mise à jour des formulaires de connexion) qui dépasse un nettoyage de code — je peux vous accompagner dessus si vous voulez, mais il faut un accès complet au projet Supabase (dashboard + éventuellement service role key, à ne jamais mettre dans le frontend) pour le faire correctement.
 
+## 3bis. Connexion Discord (remplace nom/prénom + sceau)
+
+La connexion se fait maintenant via Discord (flux OAuth "implicite" : `response_type=token`), et non plus avec un mot de passe maison :
+
+- Aucun secret n'est manipulé côté site : le token que Discord renvoie au navigateur est émis par Discord lui-même après une vraie connexion, impossible à falsifier depuis la console.
+- L'identité Discord obtenue est croisée avec la table `zenkai_characters` (déjà synchronisée depuis l'API Zenkai) pour vérifier que le compte a bien un personnage dans la division **Médical**, et pour retrouver automatiquement son nom/prénom.
+- La colonne `shinobis.discord_id` ne peut plus être modifiée directement via l'API publique (`revoke update (discord_id) on shinobis from anon`, voir `db_export/07_discord_id.sql`) : seule la fonction `set_discord_id` (appelée automatiquement au premier lien, ou manuellement par la gérance depuis l'admin) peut l'écrire. Ça empêche quelqu'un de "voler" l'identité d'un shinobi déjà lié en appelant l'API directement.
+- Les colonnes `sceau` et la fonction `verifier_sceau` restent en base pour ne pas perdre l'historique, mais ne sont plus utilisées par le site.
+
 ## 4. Résumé pour la personne pressée
 
 - Le code du site est maintenant plus propre, sans la faille XSS trouvée, et sans mot de passe stocké côté navigateur.
