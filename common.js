@@ -89,7 +89,10 @@ async function supaRpc(fn, args = {}) {
     method: 'POST', headers: SUPA_HEADERS, body: JSON.stringify(args)
   });
   if (!res.ok) throw await supaError(res);
-  return res.json();
+  // Une fonction qui renvoie void (ex. set_discord_id) répond 204 sans
+  // corps : res.json() planterait dessus alors que l'appel a réussi.
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
 }
 
 // --- Hash du "sceau" (mot de passe RP) ---
