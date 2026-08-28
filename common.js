@@ -152,7 +152,7 @@ function generateTempSceau() {
 // token directement dans le fragment d'URL, sans jamais faire intervenir
 // de client secret — indispensable puisque le site est 100% statique.
 const DISCORD_CLIENT_ID = '1543006820904345651';
-const ZENKAI_MEDICAL_DIVISION = 'Médical';
+const ZENKAI_MEDICAL_DIVISION = 'medical';
 
 function discordAuthUrl(redirectUri) {
   const params = new URLSearchParams({
@@ -188,7 +188,10 @@ async function discordFetchMe(token) {
 // distinguer "aucun personnage" de "aucun en Médical").
 async function findZenkaiMedicalCharacters(discordId) {
   const all = await supaGet('zenkai_characters', `discord_id=eq.${encodeURIComponent(discordId)}&select=char_key,name,divisions`);
-  const medical = all.filter(c => Array.isArray(c.divisions) && c.divisions.includes(ZENKAI_MEDICAL_DIVISION));
+  // `divisions` est un tableau d'objets {type, chief, grade, faction, ...},
+  // pas un tableau de libellés ("medical", pas "Médical" comme affiché
+  // dans les filtres de la page Patients).
+  const medical = all.filter(c => Array.isArray(c.divisions) && c.divisions.some(d => d && d.type === ZENKAI_MEDICAL_DIVISION));
   return { total: all.length, medical };
 }
 
