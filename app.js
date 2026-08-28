@@ -209,6 +209,16 @@ async function quitterPoste() {
   } catch (e) { console.error(e); }
 }
 
+// --- Clôture automatique du poste si le site est fermé/quitté ---
+// `keepalive` permet à cette requête de partir même si la page se ferme
+// avant que le fetch ait fini. Pas de moyen fiable de distinguer une
+// vraie fermeture d'un simple rechargement (F5) ou d'une navigation vers
+// admin.html : les deux clôturent le poste, comme une vraie badgeuse.
+window.addEventListener('pagehide', () => {
+  if (!enPoste || !posteId) return;
+  supaPatch('postes', `id=eq.${posteId}`, { actif: false, fin: new Date().toISOString() }, true, true).catch(() => {});
+});
+
 // --- Sons d'alerte ---
 const sonUrgence = new Audio('merle-sonnerie.mp3');
 const sonChirurgien = new Audio('pluvier-dore-sonnerie.mp3');

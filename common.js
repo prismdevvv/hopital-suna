@@ -54,9 +54,11 @@ async function supaPost(table, data, minimal = false) {
   return minimal ? null : res.json();
 }
 
-async function supaPatch(table, query, data, minimal = false) {
+// `keepalive`: permet à la requête de survivre à la fermeture de la page
+// (utilisé pour clôturer un poste sur pagehide, cf. app.js).
+async function supaPatch(table, query, data, minimal = false, keepalive = false) {
   const res = await fetch(`${SUPABASE_URL}/${table}?${query}`, {
-    method: 'PATCH', headers: headersFor(minimal), body: JSON.stringify(data)
+    method: 'PATCH', headers: headersFor(minimal), body: JSON.stringify(data), keepalive
   });
   if (!res.ok) throw await supaError(res);
   return minimal ? null : res.json();
