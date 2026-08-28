@@ -13,10 +13,15 @@ let shinobiMap = {};
 let chatInterval = null;
 
 // --- Charger tous les shinobis (utilisé partout pour les jointures) ---
+let zenkaiJoinMap = {};
+
 async function refreshShinobis() {
   allShinobis = await supaGet('shinobis', 'select=id,prenom,nom,role,grade,absent,discord_id&order=nom.asc,prenom.asc');
   shinobiMap = {};
   allShinobis.forEach(s => { shinobiMap[s.id] = s; });
+  try {
+    zenkaiJoinMap = await fetchZenkaiMedicalJoinDates(allShinobis.map(s => s.discord_id));
+  } catch (e) { console.error('Dates Zenkai indisponibles:', e); zenkaiJoinMap = {}; }
 }
 
 // --- Connexion Discord + vérification Zenkai (division Médical) ---
@@ -802,12 +807,17 @@ function prevGrade(current) {
 let gradeSortDir = 1;
 const GRADE_ORDER = { observateur: 0, stagiaire: 1, aspirant: 2, adepte: 3, expert: 4 };
 
+function formatJoinDate(joinedAt) {
+  if (!joinedAt) return '<span class="grade-max-hint">—</span>';
+  return new Date(joinedAt).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
 async function loadGrades() {
   const tbody = document.getElementById('grades-body');
   tbody.innerHTML = '';
 
   if (allShinobis.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5" class="empty-row">Aucun shinobi inscrit</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-row">Aucun shinobi inscrit</td></tr>';
     return;
   }
 
@@ -833,6 +843,7 @@ async function loadGrades() {
         <input type="text" class="discord-id-input" data-id="${s.id}" value="${esc(s.discord_id || '')}" placeholder="ID Discord" maxlength="32" style="width:130px;">
         <button class="btn-sm btn-save-discord" data-id="${s.id}">Lier</button>
       </td>
+      <td>${formatJoinDate(zenkaiJoinMap[s.discord_id])}</td>
       <td>
         ${prev ? `<button class="btn-grade demote" data-id="${s.id}" data-grade="${prev}">↓ ${GRADE_LABELS[prev]}</button>` : ''}
         ${next ? `<button class="btn-grade promote" data-id="${s.id}" data-grade="${next}">↑ ${GRADE_LABELS[next]}</button>` : '<span class="grade-max-hint">Grade max</span>'}

@@ -208,6 +208,23 @@ async function findZenkaiMedicalCharacters(discordId) {
   return { total: all.length, medical };
 }
 
+// Renvoie, pour une liste de discord_id (fiches shinobis déjà liées), la
+// date d'arrivée en division Médical sur Zenkai (`joinedAt`) de chacun —
+// utilisé dans Personnel → Grades pour afficher l'ancienneté dans la
+// seimei. Une map { discord_id: joinedAt|null }.
+async function fetchZenkaiMedicalJoinDates(discordIds) {
+  const ids = discordIds.filter(Boolean);
+  const map = {};
+  if (ids.length === 0) return map;
+  const list = ids.map(id => `"${id}"`).join(',');
+  const chars = await supaGet('zenkai_characters', `discord_id=in.(${list})&select=discord_id,divisions`);
+  chars.forEach(c => {
+    const medical = Array.isArray(c.divisions) ? c.divisions.find(d => d && d.type === ZENKAI_MEDICAL_DIVISION) : null;
+    map[c.discord_id] = medical ? medical.joinedAt : null;
+  });
+  return map;
+}
+
 // Le nom Zenkai est au format "Prénom Nom".
 function splitZenkaiName(name) {
   const parts = String(name || '').trim().split(/\s+/);
