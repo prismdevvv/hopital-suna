@@ -904,6 +904,16 @@ document.getElementById('th-grade').addEventListener('click', () => {
   loadGrades();
 });
 
+document.getElementById('btn-refresh-grades').addEventListener('click', async (e) => {
+  e.target.disabled = true;
+  try {
+    await refreshShinobis();
+    loadGrades();
+    loadRoles();
+  } catch (err) { console.error(err); }
+  finally { e.target.disabled = false; }
+});
+
 // =====================
 // GESTION DES RÔLES
 // =====================
