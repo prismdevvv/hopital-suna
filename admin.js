@@ -21,7 +21,7 @@ async function refreshShinobis() {
 
 // --- Connexion Discord + vérification Zenkai (division Médical) ---
 document.getElementById('discord-login-btn').addEventListener('click', () => {
-  location.href = discordAuthUrl(location.origin + location.pathname);
+  location.href = discordAuthUrl(currentPageUrl());
 });
 
 async function startDiscordLogin(token) {

@@ -167,6 +167,16 @@ function discordAuthUrl(redirectUri) {
   return `https://discord.com/api/oauth2/authorize?${params}`;
 }
 
+// URL de la page courante, normalisée pour toujours finir par le nom du
+// fichier (ex. "/hopital-suna/index.html" et pas juste "/hopital-suna/",
+// que GitHub Pages sert pourtant pareil) : Discord refuse un redirect_uri
+// qui ne correspond pas EXACTEMENT à ce qui est enregistré côté appli.
+function currentPageUrl() {
+  let path = location.pathname;
+  if (path.endsWith('/')) path += 'index.html';
+  return location.origin + path;
+}
+
 // Lit le token dans le fragment renvoyé par Discord après connexion, puis
 // nettoie immédiatement l'URL pour ne pas le laisser dans l'historique.
 function parseDiscordFragment() {
