@@ -211,10 +211,14 @@ async function quitterPoste() {
 
 // --- Clôture automatique du poste si le site est fermé/quitté ---
 // `keepalive` permet à cette requête de partir même si la page se ferme
-// avant que le fetch ait fini. Pas de moyen fiable de distinguer une
-// vraie fermeture d'un simple rechargement (F5) ou d'une navigation vers
-// admin.html : les deux clôturent le poste, comme une vraie badgeuse.
+// avant que le fetch ait fini. On n'exclut que le clic vers "Gérance"
+// (navigation volontaire au sein du site, pas une vraie sortie) : le
+// poste y reste actif. Pas de moyen fiable d'exclure aussi un simple F5.
+let quittantVersGerance = false;
+document.getElementById('gerance-link')?.addEventListener('click', () => { quittantVersGerance = true; });
+
 window.addEventListener('pagehide', () => {
+  if (quittantVersGerance) return;
   if (!enPoste || !posteId) return;
   supaPatch('postes', `id=eq.${posteId}`, { actif: false, fin: new Date().toISOString() }, true, true).catch(() => {});
 });
