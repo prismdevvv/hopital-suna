@@ -965,8 +965,11 @@ window.resolveAlerte = async function (id) {
   const saved = loadSession(SESSION_KEY);
   if (!saved || !saved.id) return;
   try {
-    const users = await supaGet('shinobis', `id=eq.${saved.id}&select=id,nom,prenom,role,grade,absent,created_at`);
-    if (users.length > 0) {
+    const users = await supaGet('shinobis', `id=eq.${saved.id}&select=id,nom,prenom,role,grade,absent,created_at,discord_id`);
+    // Coupe les anciennes sessions (créées avec nom/prénom + sceau) tant
+    // que le compte n'est pas lié à un Discord : oblige à repasser par
+    // "Se connecter avec Discord" au moins une fois.
+    if (users.length > 0 && users[0].discord_id) {
       currentUser = users[0];
       saveSession(SESSION_KEY, currentUser);
       showDashboard();

@@ -1147,8 +1147,10 @@ document.getElementById('btn-add-obs').addEventListener('click', async () => {
   const saved = loadSession(ADMIN_SESSION_KEY);
   if (!saved || !saved.id) return;
   try {
-    const users = await supaGet('shinobis', `id=eq.${saved.id}&select=id,nom,prenom,role,grade,absent,created_at`);
-    if (users.length > 0 && (users[0].role === 'gerant' || users[0].role === 'co_gerant')) {
+    const users = await supaGet('shinobis', `id=eq.${saved.id}&select=id,nom,prenom,role,grade,absent,created_at,discord_id`);
+    // Coupe les anciennes sessions (créées avec nom/prénom + sceau) tant
+    // que le compte n'est pas lié à un Discord.
+    if (users.length > 0 && users[0].discord_id && (users[0].role === 'gerant' || users[0].role === 'co_gerant')) {
       currentUser = users[0];
       saveSession(ADMIN_SESSION_KEY, currentUser);
       showAdmin();
