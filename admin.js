@@ -42,26 +42,14 @@ async function startDiscordLogin(token) {
       errEl.textContent = 'Identité ou accès incorrect.';
       return;
     }
-    if (medical.length === 1) { await finishDiscordLogin(me.id, medical[0]); return; }
-    showCharacterChoice(me.id, medical);
+    // Plusieurs persos médical possibles (ex. renommage en jeu) : on
+    // prend le plus récemment joué, medical[0] après tri dans
+    // findZenkaiMedicalCharacters.
+    await finishDiscordLogin(me.id, medical[0]);
   } catch (err) {
     console.error(err);
     errEl.textContent = 'Erreur de connexion à Discord.';
   }
-}
-
-function showCharacterChoice(discordId, characters) {
-  const list = document.getElementById('char-choice-list');
-  list.innerHTML = '';
-  characters.forEach(c => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'btn-sm';
-    btn.textContent = c.name;
-    btn.addEventListener('click', () => finishDiscordLogin(discordId, c));
-    list.appendChild(btn);
-  });
-  document.getElementById('char-choice').classList.remove('hidden');
 }
 
 async function finishDiscordLogin(discordId, character) {
@@ -90,7 +78,6 @@ document.getElementById('logout-btn').addEventListener('click', () => {
   if (chatInterval) { clearInterval(chatInterval); chatInterval = null; }
   document.getElementById('admin-screen').classList.add('hidden');
   document.getElementById('auth-screen').classList.remove('hidden');
-  document.getElementById('char-choice').classList.add('hidden');
   document.getElementById('login-error').textContent = '';
 });
 

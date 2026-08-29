@@ -197,14 +197,19 @@ async function discordFetchMe(token) {
 }
 
 // Renvoie les personnages Zenkai de ce discord_id qui sont dans la
-// division Médical, ainsi que le nombre total de personnages (pour
-// distinguer "aucun personnage" de "aucun en Médical").
+// division Médical (triés du plus récemment joué au moins récent — un
+// renommage en jeu laisse parfois l'ancien nom comme personnage à part
+// côté Zenkai, on privilégie donc le plus actif), ainsi que le nombre
+// total de personnages (pour distinguer "aucun personnage" de "aucun en
+// Médical").
 async function findZenkaiMedicalCharacters(discordId) {
-  const all = await supaGet('zenkai_characters', `discord_id=eq.${encodeURIComponent(discordId)}&select=char_key,name,divisions`);
+  const all = await supaGet('zenkai_characters', `discord_id=eq.${encodeURIComponent(discordId)}&select=char_key,name,divisions,last_played_at`);
   // `divisions` est un tableau d'objets {type, chief, grade, faction, ...},
   // pas un tableau de libellés ("medical", pas "Médical" comme affiché
   // dans les filtres de la page Patients).
-  const medical = all.filter(c => Array.isArray(c.divisions) && c.divisions.some(d => d && d.type === ZENKAI_MEDICAL_DIVISION));
+  const medical = all
+    .filter(c => Array.isArray(c.divisions) && c.divisions.some(d => d && d.type === ZENKAI_MEDICAL_DIVISION))
+    .sort((a, b) => new Date(b.last_played_at || 0) - new Date(a.last_played_at || 0));
   return { total: all.length, medical };
 }
 
