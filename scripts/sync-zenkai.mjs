@@ -59,6 +59,45 @@ async function upsertBatch(rows) {
   });
 }
 
+// Grade Zenkai (division medicale) -> grade du site. "Chef"/valeurs
+// inconnues sont ignorees (pas de mapping vers un grade du site).
+const GRADE_MAP = { Stagiaire: 'stagiaire', Aspirant: 'aspirant', Adepte: 'adepte', Expert: 'expert' };
+
+// Aligne automatiquement le grade des simples membres (jamais celui des
+// co-gerants/gerants, ni des observateurs geres a la main par la
+// gerance) sur leur grade actuel dans la division medicale sur Zenkai.
+async function syncMembreGrades(chars) {
+  const bestMedical = {};
+  for (const c of chars) {
+    if (!c.discordId) continue;
+    const medical = (c.divisions || []).find((d) => d && d.type === 'medical');
+    if (!medical) continue;
+    const prev = bestMedical[c.discordId];
+    if (!prev || new Date(c.lastPlayedAt || 0) > new Date(prev.lastPlayedAt || 0)) {
+      bestMedical[c.discordId] = { grade: medical.grade, lastPlayedAt: c.lastPlayedAt };
+    }
+  }
+
+  const shinobis = await fetchJson(
+    `${SUPABASE_URL}/shinobis?discord_id=not.is.null&role=eq.membre&grade=neq.observateur&select=id,discord_id,grade`,
+    { headers: sbHeaders }
+  );
+
+  let updated = 0;
+  for (const s of shinobis) {
+    const entry = bestMedical[s.discord_id];
+    const mapped = entry && GRADE_MAP[entry.grade];
+    if (!mapped || mapped === s.grade) continue;
+    await fetchJson(`${SUPABASE_URL}/shinobis?id=eq.${s.id}`, {
+      method: 'PATCH',
+      headers: { ...sbHeaders, Prefer: 'return=minimal' },
+      body: JSON.stringify({ grade: mapped }),
+    });
+    updated++;
+  }
+  console.log(`${updated} grade(s) de membre aligne(s) sur Zenkai`);
+}
+
 async function logSync(count, stats, ok, error) {
   try {
     await fetchJson(`${SUPABASE_URL}/zenkai_sync_log`, {
@@ -88,6 +127,8 @@ async function main() {
       method: 'DELETE',
       headers: { ...sbHeaders, Prefer: 'return=minimal' },
     });
+
+    await syncMembreGrades(chars);
 
     const statsBody = await fetchJson(`${API}/api/stats`);
     await logSync(rows.length, statsBody.data ?? null, true, null);
