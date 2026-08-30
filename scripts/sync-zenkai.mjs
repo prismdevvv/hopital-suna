@@ -63,9 +63,12 @@ async function upsertBatch(rows) {
 // inconnues sont ignorees (pas de mapping vers un grade du site).
 const GRADE_MAP = { Stagiaire: 'stagiaire', Aspirant: 'aspirant', Adepte: 'adepte', Expert: 'expert' };
 
-// Aligne automatiquement le grade des simples membres (jamais celui des
-// co-gerants/gerants, ni des observateurs geres a la main par la
-// gerance) sur leur grade actuel dans la division medicale sur Zenkai.
+// Aligne automatiquement le grade (stagiaire/aspirant/adepte/expert) de
+// tout compte lie sur son grade actuel dans la division medicale Zenkai
+// - role (membre/co-gerant/gerant) et grade sont deux axes independants,
+// donc les gerants/co-gerants sont concernes aussi. Seuls les
+// observateurs (geres a la main par la gerance, pas lies a Zenkai) sont
+// exclus.
 async function syncMembreGrades(chars) {
   const bestMedical = {};
   for (const c of chars) {
@@ -79,7 +82,7 @@ async function syncMembreGrades(chars) {
   }
 
   const shinobis = await fetchJson(
-    `${SUPABASE_URL}/shinobis?discord_id=not.is.null&role=eq.membre&grade=neq.observateur&select=id,discord_id,grade`,
+    `${SUPABASE_URL}/shinobis?discord_id=not.is.null&grade=neq.observateur&select=id,discord_id,grade`,
     { headers: sbHeaders }
   );
 
