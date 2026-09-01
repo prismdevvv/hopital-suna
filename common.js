@@ -255,8 +255,19 @@ async function resolveShinobiForCharacter(discordId, character) {
     return users[0];
   }
 
-  const created = await supaPost('shinobis', { nom, prenom, discord_id: discordId, grade: 'stagiaire' });
-  return created[0];
+  // minimal:true car `Prefer: return=representation` ferait relire la
+  // ligne insérée colonne par colonne, y compris `sceau` — dont la
+  // lecture est justement révoquée pour anon (échoue en 42501 malgré
+  // des droits d'écriture corrects). On relit ensuite explicitement
+  // seulement les colonnes publiques.
+  // `sceau` reste NOT NULL en base mais n'est plus utilisé pour se
+  // connecter (Discord fait foi) : même sceau aléatoire et jamais
+  // divulgué que pour un compte "observateur" créé par la gérance.
+  const randomSceau = generateTempSceau() + generateTempSceau();
+  const hashed = await hashSceau(randomSceau);
+  await supaPost('shinobis', { nom, prenom, discord_id: discordId, grade: 'stagiaire', sceau: hashed }, true);
+  users = await supaGet('shinobis', `discord_id=eq.${encodeURIComponent(discordId)}&select=id,nom,prenom,role,grade,absent,created_at`);
+  return users[0];
 }
 
 // --- Thème clair / sombre (identique sur les deux pages) ---
